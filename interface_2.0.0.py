@@ -27,11 +27,13 @@ def judge_name(doctor_name):
 
     if '号' in doctor_name:
         if '专病' in doctor_name:
-            # doctor_name = doctor_name.split('专病')[1].split('号')[0]  # `专病`后，`号`前
-            # return True, doctor_name
+            doctor_name = doctor_name.split('专病')[1].split('号')[0]  # `专病`后，`号`前
             return True, doctor_name
+            # return True, doctor_name
         else:
-            return False, doctor_name
+            doctor_name = doctor_name.split('号')[0]  # `号`前
+            return True, doctor_name
+            # return False, doctor_name
 
 
 def get_clean_name_from_raw_doctor_name(doctor_name):
