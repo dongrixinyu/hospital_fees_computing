@@ -178,7 +178,7 @@ def doctor_total_sum_statistics(
     else:
         print('###: ', cur_doctor_name)
 
-    return doctor_fee_info_dict
+    return dict(sorted(doctor_fee_info_dict.items(), key=lambda i: i[0]))
 
 
 def class_statistics(
