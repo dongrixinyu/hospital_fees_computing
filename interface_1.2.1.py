@@ -1,50 +1,12 @@
 ﻿# -*- coding=utf-8 -*-
 # 更新内容
 # 在 1.0.0 基础上，将所有的 “号”都算在内，但是多减一项卫生材料费。
-
+# 在 1.2.0 基础上，输出结果 csv 文件中多包含了每个大项的子项明细
 
 import os
 import pandas as pd
 import tkinter as tk
 import tkinter.filedialog
-
-
-def total_sum_judge_name(doctor_name):
-    """ 判断病人医生是否计入 总额。共分几种情况
-    `艾俊俊` `儿科专病李慧号` `过敏专病吴玲霞` `胡晓玲主任号` `激光便民号`
-
-    与  judge_name 函数不同，该函数只要有医生名字，就算在内，所以，包含主任和副主任的都算。
-
-    :param doctor_name:
-    :return:
-    """
-    if '便民' in doctor_name:
-        return False, doctor_name
-
-    if '美容外科普通' in doctor_name:
-        return False, doctor_name
-
-    if '副主任' in doctor_name or '主任' in doctor_name:
-        if '副主任' in doctor_name:
-            return True, doctor_name.split('副主任')[0]
-        elif '主任' in doctor_name:
-            return True, doctor_name.split('主任')[0]
-
-    if '号' not in doctor_name:  # and '病' not in doctor_name:
-        if '专病' in doctor_name:
-            return True, doctor_name.split('专病')[1]
-        else:
-            return True, doctor_name
-
-    if '号' in doctor_name:
-        if '专病' in doctor_name:
-            doctor_name = doctor_name.split('专病')[1].split('号')[0]  # `专病`后，`号`前
-            return True, doctor_name
-            # return False, doctor_name
-        else:
-            doctor_name = doctor_name.split('号')[0]  # `专病`后，`号`前
-            return True, doctor_name
-            # return False, doctor_name
 
 
 def judge_name(doctor_name):
@@ -95,7 +57,7 @@ def combine_two_dict(dict_1, dict_2):
 def find_all_receiving_department(xls_content):
     receiving_department_index = find_key_item_index(xls_content, keywords='接收科室')
 
-    receiving_department_list = []
+    receiving_department_list = list()
     for line_idx in range(receiving_department_index[0] + 1, xls_content.values.shape[0]):
         res = xls_content.values[line_idx][receiving_department_index[1]]
         if type(res) is str:
@@ -110,81 +72,12 @@ def find_key_item_index(xls_content, keywords='病人医生'):
         for j in range(xls_content_shape[1]):
             if xls_content.values[i][j] == keywords:
                 return i, j
-
     raise ValueError('这个表格存在问题，无法找到 `{}` 单元。'.format(keywords))
 
 
-def doctor_total_sum_statistics(
-        xls_content, doctor_base_index, total_sum_index, file_type):
-    """ 统计每个医生的所有总收入，一年统计一次
-
-    :param xls_content:
-    :param doctor_base_index: 医生索引号
-    :param total_sum_index: `合计` 项索引号
-    :param file_type: `住院` 或 `门诊`，用于判断哪些费用不减
-    :return:
-    """
-    doctor_fee_info_dict = dict()
-    # 根据检查检验项目，计算每个医生的总额
-    tmp_doctor_fee_sum = 0
-    cur_doctor_name = None
-
-    for line_idx in range(doctor_base_index[0] + 1, xls_content.shape[0]):
-        if xls_content.values[line_idx][0] in ['小计', '合计']:
-            # 到了文件末尾，直接跳过
-            continue
-
-        doctor_name = xls_content.values[line_idx][doctor_base_index[1]]
-        if type(doctor_name) is str:
-            if line_idx == doctor_base_index[0] + 1:
-                # 第一个医生，之前没有医生
-                pass
-            else:
-                # 新一位医生计算开始，结束前一位医生总额。
-                # 若前面有该医生，则叠加
-                # 若前面没有出现过该医生，则直接更新
-
-                # 判断该医生名是否应当计入
-                is_a_doctor, cur_doctor_name = total_sum_judge_name(cur_doctor_name)
-                if is_a_doctor:
-                    if cur_doctor_name in doctor_fee_info_dict:
-                        doctor_fee_info_dict[cur_doctor_name] += tmp_doctor_fee_sum
-                    else:
-                        doctor_fee_info_dict.update({cur_doctor_name: tmp_doctor_fee_sum})
-                else:
-                    print('###: ', cur_doctor_name)
-
-                tmp_doctor_fee_sum = 0
-
-            cur_doctor_name = doctor_name
-            # print(cur_doctor_name)
-
-            tmp_doctor_fee_sum = xls_content.values[line_idx][total_sum_index[1]]
-
-        elif type(doctor_name) is float:  # 其含义为 nan 数据
-            tmp_doctor_fee_sum += xls_content.values[line_idx][total_sum_index[1]]
-
-        else:
-            raise ValueError('表格中 `病人医生` 列存在问题。')
-
-    # 将末尾的医生添加到信息中
-    # 判断该医生名是否应当计入
-    is_a_doctor, cur_doctor_name = total_sum_judge_name(cur_doctor_name)
-    if is_a_doctor:
-        if cur_doctor_name in doctor_fee_info_dict:
-            doctor_fee_info_dict[cur_doctor_name] += tmp_doctor_fee_sum
-        else:
-            doctor_fee_info_dict.update({cur_doctor_name: tmp_doctor_fee_sum})
-    else:
-        print('###: ', cur_doctor_name)
-
-    return dict(sorted(doctor_fee_info_dict.items(), key=lambda i: i[0]))
-
-
-def class_statistics(
-        xls_content, computing_class, doctor_base_index, receiving_department,
-        medical_income_total, sanitation_material_fee, consultation_fee,
-        file_type):
+def class_statistics(xls_content, computing_class, doctor_base_index, receiving_department,
+                     medical_income_total, sanitation_material_fee, consultation_fee,
+                     file_type):
     """ 统计各个类型的计费
 
     :param xls_content:
@@ -225,7 +118,7 @@ def class_statistics(
                 tmp_doctor_fee_info = dict()
 
             cur_doctor_name = doctor_name
-            # print(cur_doctor_name)
+            print(cur_doctor_name)
 
             # 获取接收科室名，并判定是否在检查检验中
             receiving_department_name = xls_content.values[line_idx][receiving_department[1]]
@@ -292,10 +185,9 @@ class DataStatistics(object):
         self.file_type = None  # `住院` 或者 `门诊`
         self.xls_file_path = None
         self.xls_content = None
-        self.receiving_department_list = []
-        self.inspection_testing_list = [
-            '128层CT室', 'CT室', '1.5T磁共振室', 'DR室',
-            '彩超室', '心电图室', '内镜室', '检验科']
+        self.receiving_department_list = list()
+        self.inspection_testing_list = ['128层CT室', 'CT室', '1.5T磁共振室', 'DR室',
+                                        '彩超室', '心电图室', '内镜室', '检验科']
         self.dermatology_clinic_list = [
             '皮肤科308照射室', '皮肤科二氧化碳激光室', '皮肤科光疗室',
             '皮肤科果酸换肤室', '皮肤科He-Ni激光室', '皮肤科红蓝光治疗室',
@@ -320,8 +212,7 @@ class DataStatistics(object):
         self.xls_content = pd.read_excel(io=xls_file_path)
 
     def get_receiving_department_list(self):
-        self.receiving_department_list = sorted(
-            find_all_receiving_department(self.xls_content))
+        self.receiving_department_list = sorted(find_all_receiving_department(self.xls_content))
 
 
 class SelectFilePage(object):
@@ -332,9 +223,8 @@ class SelectFilePage(object):
         self.interface = tk.Frame(self.root)
         self.interface.pack()
 
-        title_label = tk.Label(
-            self.interface, text='1. 选择 xls 文件，并指定该文件是 住院|门诊',
-            font='Helvetica 13 bold')
+        title_label = tk.Label(self.interface, text='1. 选择 xls 文件，并指定该文件是 住院|门诊',
+                               font='Helvetica 13 bold')
         title_label.grid(row=0, column=0, columnspan=3)
 
         label = tk.Label(self.interface, text='请打开xls文件：')
@@ -435,8 +325,7 @@ class DefinitionPage(object):
         self.interface.bind('<Configure>', self._configure_canvas)
 
         horizontal, vertical = 0, 0
-        title_label = tk.Label(
-            self.interior, text='二. 确定类别、子项', font='Helvetica 13 bold')
+        title_label = tk.Label(self.interior, text='二. 确定类别、子项', font='Helvetica 13 bold')
         title_label.grid(row=horizontal, column=vertical)
 
         self.inspection_testing_check_buttons, horizontal = self._get_sub_item_info(
@@ -517,8 +406,7 @@ class DefinitionPage(object):
         :return:
         """
         horizontal += 1
-        subtitle_label = tk.Label(
-            self.interior, text=sub_title, font='Helvetica 11 bold')
+        subtitle_label = tk.Label(self.interior, text=sub_title, font='Helvetica 11 bold')
         subtitle_label.grid(row=horizontal, column=vertical)
 
         self.data_obj.get_receiving_department_list()
@@ -615,17 +503,11 @@ class DetailPage(object):
         title_label = tk.Label(self.interface, text='三. 计算结果如下', font='Helvetica 13 bold')
         title_label.grid(row=0, column=0)
 
-        # 用于计算合计
-        total_sum_index = find_key_item_index(self.data_obj.xls_content, keywords='合计')
-
         doctor_base_index = find_key_item_index(self.data_obj.xls_content, keywords='病人医生')
         receiving_department = find_key_item_index(self.data_obj.xls_content, keywords='接收科室')
         medical_income_total = find_key_item_index(self.data_obj.xls_content, keywords='医疗收入小计')
         sanitation_material_fee = find_key_item_index(self.data_obj.xls_content, keywords='卫生材料费')
         consultation_fee = find_key_item_index(self.data_obj.xls_content, keywords='诊查费')
-
-        self.docker_total_sum_dict = doctor_total_sum_statistics(
-            self.data_obj.xls_content, doctor_base_index, total_sum_index, self.data_obj.file_type)
 
         self.inspection_testing_info_dict = class_statistics(
             self.data_obj.xls_content, self.data_obj.inspection_testing_list,
@@ -687,38 +569,37 @@ class DetailPage(object):
             consultation_fee,
             self.data_obj.file_type)
 
-        text_canvas = tk.Text(self.interface, height=38, width=120)
-
-        csv_total_sum_fee_path = self.print_and_write_total_sum_file()
-
+        text_canvas = tk.Text(self.interface, height=42, width=120)
         print_detail_text, csv_file_path = self.print_and_write_file()
         text_canvas.grid(row=1, column=0, columnspan=4)
         text_canvas.insert(tk.END, print_detail_text)
 
-        text_path_canvas_1 = tk.Text(self.interface, height=2, width=120)
-        text_path_canvas_1.grid(row=2, column=0, columnspan=4)
-        text_path_canvas_1.insert(tk.END, csv_file_path)
-
-        text_path_canvas_2 = tk.Text(self.interface, height=2, width=120)
-        text_path_canvas_2.grid(row=3, column=0, columnspan=4)
-        text_path_canvas_2.insert(tk.END, csv_total_sum_fee_path)
-
-    def print_and_write_total_sum_file(self):
-
-        doctor_total_sum_fee = []
-        for doctor_name, doctor_sum in self.docker_total_sum_dict.items():
-            doctor_total_sum_fee.append('{},{}'.format(doctor_name, doctor_sum))
-
-        doctor_fee_txt = '\n'.join(doctor_total_sum_fee)
-        with open(os.path.join(DIR_PATH, self.data_obj.file_type + '_医生月度总计.csv'), 'w', encoding='utf-8') as fw:
-            fw.write(doctor_fee_txt)
-
-        return os.path.join(DIR_PATH, self.data_obj.file_type + '_医生月度总计.csv')
+        text_path_canvas = tk.Text(self.interface, height=2, width=120)
+        text_path_canvas.grid(row=2, column=0, columnspan=4)
+        text_path_canvas.insert(tk.END, csv_file_path)
 
     def print_and_write_file(self):
         doctor_fees_dict = dict()
-        item_list = ['检查检验合计', '皮肤科门诊合计', '康复合计', '美容外科诊室', '美容皮肤科诊室',
-                     '特需病区', '皮肤科（一病区）', '皮肤科（二病区）', '皮肤科（三病区）', '皮肤科（四病区）']
+        item_list = self.data_obj.inspection_testing_list + ['检查检验合计']
+        item_list.extend(self.data_obj.dermatology_clinic_list)
+        item_list.append('皮肤科门诊合计')
+        item_list.extend(self.data_obj.recovery_clinic_list)
+        item_list.append('康复合计')
+        item_list.extend(self.data_obj.cosmetic_surgery_list)
+        item_list.append('美容外科诊室合计')
+        item_list.extend(self.data_obj.cosmetic_dermatology_list)
+        item_list.append('美容皮肤科诊室合计')
+        item_list.extend(self.data_obj.special_need_list)
+        item_list.append('特需病区合计')
+        item_list.extend(self.data_obj.dermatology_ward_1_list)
+        item_list.append('皮肤科（一病区）合计')
+        item_list.extend(self.data_obj.dermatology_ward_2_list)
+        item_list.append('皮肤科（二病区）合计')
+        item_list.extend(self.data_obj.dermatology_ward_3_list)
+        item_list.append('皮肤科（三病区）合计')
+        item_list.extend(self.data_obj.dermatology_ward_4_list)
+        item_list.append('皮肤科（四病区）合计')
+        item_list.append('医生本月合计')
         doctor_fees_txt = '医生姓名,' + ','.join(item_list) + '\n'
 
         num_format = '{:.2f}'
@@ -788,8 +669,96 @@ class DetailPage(object):
                     print_text.append('\t\t' + key + ': ' + num_format.format(val))
 
             print_text.append('\n')
-            doctor_fees_txt += doctor_name + ',' + ','.join(map(str, list(tmp_dict.values()))) + '\n'
+
+            # 统计每个医生的每一项明细，如果没有按 0 算
+            doctor_fees_num_txt = doctor_name + ','
+            # 检查检验明细
+            for item in self.data_obj.inspection_testing_list:
+                if item in self.inspection_testing_info_dict[doctor_name]:
+                    doctor_fees_num_txt += num_format.format(self.inspection_testing_info_dict[doctor_name][item]) + ','
+                else:
+                    doctor_fees_num_txt += ','
+            doctor_fees_num_txt += num_format.format(sum(list(self.inspection_testing_info_dict[doctor_name].values()))) + ','
+
+            # 皮肤科诊室合计
+            for item in self.data_obj.dermatology_clinic_list:
+                if item in self.dermatology_clinic_info_dict[doctor_name]:
+                    doctor_fees_num_txt += num_format.format(self.dermatology_clinic_info_dict[doctor_name][item]) + ','
+                else:
+                    doctor_fees_num_txt += ','
+            doctor_fees_num_txt += num_format.format(sum(list(self.dermatology_clinic_info_dict[doctor_name].values()))) + ','
+
+            # 康复合计
+            for item in self.data_obj.recovery_clinic_list:
+                if item in self.recovery_clinic_info_dict[doctor_name]:
+                    doctor_fees_num_txt += num_format.format(self.recovery_clinic_info_dict[doctor_name][item]) + ','
+                else:
+                    doctor_fees_num_txt += ','
+            doctor_fees_num_txt += num_format.format(sum(list(self.recovery_clinic_info_dict[doctor_name].values()))) + ','
+
+            # 美容外科合计
+            for item in self.data_obj.cosmetic_surgery_list:
+                if item in self.cosmetic_surgery_info_dict[doctor_name]:
+                    doctor_fees_num_txt += num_format.format(self.cosmetic_surgery_info_dict[doctor_name][item]) + ','
+                else:
+                    doctor_fees_num_txt += ','
+            doctor_fees_num_txt += num_format.format(sum(list(self.cosmetic_surgery_info_dict[doctor_name].values()))) + ','
+
+            # 美容皮肤科合计
+            for item in self.data_obj.cosmetic_dermatology_list:
+                if item in self.cosmetic_dermatology_info_dict[doctor_name]:
+                    doctor_fees_num_txt += num_format.format(self.cosmetic_dermatology_info_dict[doctor_name][item]) + ','
+                else:
+                    doctor_fees_num_txt += ','
+            doctor_fees_num_txt += num_format.format(sum(list(self.cosmetic_dermatology_info_dict[doctor_name].values()))) + ','
+
+            # 特需病房
+            for item in self.data_obj.special_need_list:
+                if item in self.special_need_info_dict[doctor_name]:
+                    doctor_fees_num_txt += num_format.format(self.special_need_info_dict[doctor_name][item]) + ','
+                else:
+                    doctor_fees_num_txt += ','
+            doctor_fees_num_txt += num_format.format(sum(list(self.special_need_info_dict[doctor_name].values()))) + ','
+
+            # 皮一
+            for item in self.data_obj.dermatology_ward_1_list:
+                if item in self.dermatology_ward_1_info_dict[doctor_name]:
+                    doctor_fees_num_txt += num_format.format(self.dermatology_ward_1_info_dict[doctor_name][item]) + ','
+                else:
+                    doctor_fees_num_txt += ','
+            doctor_fees_num_txt += num_format.format(sum(list(self.dermatology_ward_1_info_dict[doctor_name].values()))) + ','
+
+            # 皮二
+            for item in self.data_obj.dermatology_ward_2_list:
+                if item in self.dermatology_ward_2_info_dict[doctor_name]:
+                    doctor_fees_num_txt += num_format.format(self.dermatology_ward_2_info_dict[doctor_name][item]) + ','
+                else:
+                    doctor_fees_num_txt += ','
+            doctor_fees_num_txt += num_format.format(sum(list(self.dermatology_ward_2_info_dict[doctor_name].values()))) + ','
+
+            # 皮三
+            for item in self.data_obj.dermatology_ward_3_list:
+                if item in self.dermatology_ward_3_info_dict[doctor_name]:
+                    doctor_fees_num_txt += num_format.format(self.dermatology_ward_3_info_dict[doctor_name][item]) + ','
+                else:
+                    doctor_fees_num_txt += ','
+            doctor_fees_num_txt += num_format.format(sum(list(self.dermatology_ward_3_info_dict[doctor_name].values()))) + ','
+
+            # 皮四
+            for item in self.data_obj.dermatology_ward_4_list:
+                if item in self.dermatology_ward_4_info_dict[doctor_name]:
+                    doctor_fees_num_txt += num_format.format(self.dermatology_ward_4_info_dict[doctor_name][item]) + ','
+                else:
+                    doctor_fees_num_txt += ','
+            doctor_fees_num_txt += num_format.format(sum(list(self.dermatology_ward_4_info_dict[doctor_name].values()))) + ','
+
+            # 所有项合计，当月医生合计
+            doctor_fees_num_txt += num_format.format(sum(list(tmp_dict.values()))) + ','
+
+            doctor_fees_txt += doctor_fees_num_txt + ',' + '\n'
             doctor_fees_dict.update({doctor_name: tmp_dict})
+
+
 
         with open(os.path.join(DIR_PATH, self.data_obj.file_type + '_医生各项明细.csv'), 'w', encoding='utf-8') as fw:
             fw.write(doctor_fees_txt)

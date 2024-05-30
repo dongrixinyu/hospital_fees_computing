@@ -1,4 +1,6 @@
 # 安装步骤
+
+- 安装解析 xlsx 文件：pip install openpyxl
 ```
 $ pyinstaller -F -w .\interface.py
 ```
@@ -7,3 +9,4 @@ $ pyinstaller -F -w .\interface.py
 - 1.2.0 是妈妈用的最多的，时间最长的
 - 1.3.0 是带了每个医生所有费用总和的
 - 2.0.0 目前没有在用，觉得麻烦。
+- 2.1.0 针对系统更新以后的版本 2024年5月
