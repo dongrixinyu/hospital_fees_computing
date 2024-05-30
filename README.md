@@ -1,6 +1,6 @@
 # 安装步骤
 
-- 安装解析 xlsx 文件：pip install openpyxl
+- 安装解析 xlsx 文件：`pip install openpyxl`
 ```
 $ pyinstaller -F -w .\interface.py
 ```
